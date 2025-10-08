@@ -1,3 +1,4 @@
+pub mod dataset;
 pub mod funcs;
 pub mod gpt;
 pub mod graph;

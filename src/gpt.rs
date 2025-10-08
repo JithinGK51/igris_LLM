@@ -1,3 +1,4 @@
+use crate::dataset::MultiModalDataset;
 use crate::funcs::*;
 use crate::graph::{Graph, GraphError, TensorId};
 use crate::optimizer::{Optimizer, OptimizerState};
@@ -42,6 +43,49 @@ fn sample_dataset<R: Rng>(
             .take(context_size + 1)
             .cloned()
             .collect::<Vec<_>>();
+        xs.extend(&all[0..context_size]);
+        ys.extend(&all[1..context_size + 1]);
+    }
+
+    (
+        Tensor::raw(&[batch_size, context_size], xs).unwrap(),
+        Tensor::raw(&[batch_size, context_size], ys).unwrap(),
+    )
+}
+
+/// Sample from a multimodal dataset with task-prefixed sequences
+fn sample_multimodal_dataset<R: Rng>(
+    dataset: &[(String, Vec<usize>)], // (task, tokens)
+    batch_size: usize,
+    context_size: usize,
+    rng: &mut R,
+) -> (Tensor<usize>, Tensor<usize>) {
+    let mut xs: Vec<usize> = Vec::with_capacity(batch_size * context_size);
+    let mut ys: Vec<usize> = Vec::with_capacity(batch_size * context_size);
+    
+    for _i in 0..batch_size {
+        // Select a random dataset entry
+        let (task, tokens) = &dataset[rng.gen_range(0..dataset.len())];
+        
+        // Add task token at the beginning
+        let task_token_id = match task.as_str() {
+            "text" => 0,
+            "code" => 1,
+            "image" => 2,
+            _ => 0, // Default to text
+        };
+        
+        // Create sequence with task token + tokens
+        let mut sequence = vec![task_token_id];
+        sequence.extend(tokens);
+        
+        // If sequence is too short, pad with zeros
+        while sequence.len() < context_size + 1 {
+            sequence.push(0);
+        }
+        
+        // Take context_size + 1 tokens for input and output
+        let all = sequence.into_iter().take(context_size + 1).collect::<Vec<_>>();
         xs.extend(&all[0..context_size]);
         ys.extend(&all[1..context_size + 1]);
     }
@@ -530,5 +574,141 @@ impl<G: Graph> GPT<G> {
             cnt += 1;
         }
         Ok(chs)
+    }
+
+    /// Train on multimodal dataset (CPU version)
+    pub fn train_multimodal_cpu<
+        O: Optimizer,
+        F: Fn(usize) -> f32,
+        C: Fn(&mut Self) -> Result<(), GraphError>,
+    >(
+        &mut self,
+        dataset: &[(String, Vec<usize>)], // (task, tokens)
+        num_batches: usize,
+        batch_size: usize,
+        limit: Option<usize>,
+        optimizer: &O,
+        learning_rate: F,
+        callback: C,
+    ) -> Result<(), GraphError>
+    where
+        G: Clone + Send + Sync,
+    {
+        self.graph.load(self.pos_input, &self.pos_input_fixed)?;
+
+        for i in 0..num_batches {
+            let timer = Instant::now();
+            let (graphs, errs): (Vec<G>, Vec<f32>) = (0..batch_size)
+                .into_par_iter()
+                .map(|_| {
+                    let mut rng = rand::thread_rng();
+                    let mut graph = self.graph.clone();
+                    let (xs, ys) = sample_multimodal_dataset(dataset, 1, self.num_tokens, &mut rng);
+
+                    graph.load_usize(self.token_input, &xs)?;
+                    graph.load_usize(self.expected_output, &ys)?;
+                    graph.forward(true)?;
+                    graph.zero_grad()?;
+                    let err = graph.backward_all(self.loss, limit)?;
+                    Ok((graph, err))
+                })
+                .collect::<Result<Vec<(G, f32)>, GraphError>>()?
+                .into_iter()
+                .unzip();
+            for (id, avg) in self
+                .graph
+                .params()
+                .to_vec()
+                .into_par_iter()
+                .map(|id| {
+                    let mut avg = Tensor::<f32>::scalar(0.);
+                    for g in graphs.iter() {
+                        avg = (&avg + g.get_grad(id)?)?;
+                    }
+                    avg = avg.map_values(|f| f / graphs.len() as f32);
+                    Ok((id, avg))
+                })
+                .collect::<Result<Vec<_>, GraphError>>()?
+            {
+                self.graph.load_grad(id, &avg)?;
+            }
+            let avg_loss = errs.iter().sum::<f32>() / errs.len() as f32;
+            let lr = learning_rate(self.graph.optimizer_step());
+            self.graph.optimize(optimizer, lr)?;
+            if i % 10 == 0 {
+                self.sync()?;
+                callback(self)?;
+            }
+            println!(
+                "Step: {} Loss: {} (Elapsed: {}ms)",
+                self.graph.optimizer_step(),
+                avg_loss,
+                timer.elapsed().as_millis()
+            );
+        }
+        Ok(())
+    }
+
+    /// Train on multimodal dataset (GPU version)
+    pub fn train_multimodal<O: Optimizer, F: Fn(usize) -> f32, C: Fn(&mut Self) -> Result<(), GraphError>>(
+        &mut self,
+        dataset: &[(String, Vec<usize>)], // (task, tokens)
+        num_batches: usize,
+        batch_size: usize,
+        limit: Option<usize>,
+        optimizer: &O,
+        learning_rate: F,
+        callback: C,
+    ) -> Result<(), GraphError> {
+        self.graph.load(self.pos_input, &self.pos_input_fixed)?;
+
+        for i in 0..num_batches {
+            let timer = Instant::now();
+            let mut rng = rand::thread_rng();
+            let (xs, ys) = sample_multimodal_dataset(dataset, batch_size, self.num_tokens, &mut rng);
+
+            self.graph.load_usize(self.token_input, &xs)?;
+            self.graph.load_usize(self.expected_output, &ys)?;
+
+            self.graph.forward(true)?;
+            self.graph.zero_grad()?;
+            let err = self.graph.backward_all(self.loss, limit)?;
+            let lr = learning_rate(self.graph.optimizer_step());
+            self.graph.optimize(optimizer, lr)?;
+            if i % 50 == 0 {
+                callback(self)?;
+            }
+            println!(
+                "Step: {} Loss: {} (Elapsed: {}ms)",
+                self.graph.optimizer_step(),
+                err,
+                timer.elapsed().as_millis()
+            );
+        }
+        Ok(())
+    }
+
+    /// Infer with task prefix
+    pub fn infer_with_task<R: Rng, F: Fn(usize) -> ()>(
+        &mut self,
+        rng: &mut R,
+        task: &str,
+        prompt: &[usize],
+        count: usize,
+        temperature: f32,
+        callback: F,
+    ) -> Result<Vec<usize>, GraphError> {
+        // Add task token to the beginning of the prompt
+        let task_token_id = match task {
+            "text" => 0,
+            "code" => 1,
+            "image" => 2,
+            _ => 0, // Default to text
+        };
+        
+        let mut task_prefixed_prompt = vec![task_token_id];
+        task_prefixed_prompt.extend(prompt);
+        
+        self.infer(rng, &task_prefixed_prompt, count, temperature, callback)
     }
 }

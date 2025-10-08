@@ -1,10 +1,10 @@
-# :robot: femtoGPT
+# :robot: Igris
 
-![crates.io](https://img.shields.io/crates/v/femto-gpt.svg)
-![GitHub top language](https://img.shields.io/github/languages/top/keyvank/femtoGPT)
-![GitHub](https://img.shields.io/github/license/keyvank/femtoGPT)
+![crates.io](https://img.shields.io/crates/v/igris.svg)
+![GitHub top language](https://img.shields.io/github/languages/top/keyvank/Igris)
+![GitHub](https://img.shields.io/github/license/keyvank/Igris)
 
-femtoGPT is a pure Rust implementation of a minimal Generative Pretrained Transformer.
+Igris is a pure Rust implementation of a minimal Generative Pretrained Transformer.
 
 It can be used for both *inference* and *training* of GPT-style language-models
 using **CPUs** and **GPUs**!
@@ -31,20 +31,25 @@ along with training/inference code of a minimal GPT architecture.
 The architecture is very similar/almost identical with Andrej Karpathy's
 [nanoGPT video lecture](https://github.com/karpathy/ng-video-lecture).
 
-femtoGPT is a great start for those who are fascinated by LLMs and would like to
+Igris is a great start for those who are fascinated by LLMs and would like to
 understand how these models work in very deep levels.
 
-femtoGPT uses nothing but random generation libraries (`rand`/`rand-distr`), data-serialization
+Igris uses nothing but random generation libraries (`rand`/`rand-distr`), data-serialization
 libraries (`serde`/`bincode` for saving/loading already trained models) and a
 parallel computing library (`rayon`).
 
-femtoGPT is ~~EXTREMELY SLOW~~ ***relatively fast on CPU 😉***, and most of the
+Igris is ~~EXTREMELY SLOW~~ ***relatively fast on CPU 😉***, and most of the
 primitive operations (E.g Matrix multiplication) are implemented in the simplest way possible.
 
 Correctness of gradients is checked using gradient-check method, though it still is very
 possible that some layers are implemented wrongly.
 
 ([Discord server](https://discord.gg/wTJFaDVn45) for discussions around the project!)
+
+## Documentation
+
+- **[Multi-Modal Training Guide](docs/MULTIMODAL_TRAINING.md)** - Getting started with text, code, and image prompt generation
+- **[Advanced Training Guide](docs/ADVANCED_TRAINING_GUIDE.md)** - Production-level training, GPU optimization, and scaling strategies
 
 ## Usage
 
@@ -60,7 +65,7 @@ On Debian systems, you can setup OpenCL runtimes by installing the package `ocl-
 
 `sudo apt install ocl-icd-opencl-dev`
 
-***GOOD NEWS!*** *Since femtoGPT's GPU implementation is based on OpenCL, it can
+***GOOD NEWS!*** *Since Igris's GPU implementation is based on OpenCL, it can
 run on both NVIDIA and AMD cards, and you won't need to install heavy-weight
 CUDA-toolkits on your system. OpenCL runtimes would suffice!*
 

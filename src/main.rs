@@ -1,7 +1,8 @@
-use femto_gpt::gpt::{TrainingState, GPT};
-use femto_gpt::graph::GraphError;
-use femto_gpt::optimizer::AdamW;
-use femto_gpt::tokenizer::{SimpleTokenizer, Tokenizer};
+use igris::dataset::{load_jsonl, load_plain_text, text_to_multimodal, MultiModalDataset};
+use igris::gpt::{TrainingState, GPT};
+use igris::graph::GraphError;
+use igris::optimizer::AdamW;
+use igris::tokenizer::{SimpleTokenizer, Tokenizer, TaskAwareTokenizer};
 use std::fs;
 use std::io::prelude::*;
 use std::path::PathBuf;
@@ -14,6 +15,8 @@ enum Cli {
         dataset: PathBuf,
         #[structopt(long, default_value = "training_state.dat")]
         model: PathBuf,
+        #[structopt(long, default_value = "text")]
+        dataset_format: String,
     },
     Infer {
         #[structopt(long, default_value = "dataset.txt")]
@@ -22,6 +25,8 @@ enum Cli {
         model: PathBuf,
         #[structopt(long)]
         prompt: String,
+        #[structopt(long, default_value = "text")]
+        task: String,
         #[structopt(long, default_value = "100")]
         count: usize,
         #[structopt(long, default_value = "0.5")]
@@ -31,12 +36,12 @@ enum Cli {
 
 fn main() -> Result<(), GraphError> {
     #[cfg(not(feature = "gpu"))]
-    let graph = femto_gpt::graph::CpuGraph::new();
+    let graph = igris::graph::CpuGraph::new();
     #[cfg(not(feature = "gpu"))]
     let is_gpu = false;
 
     #[cfg(feature = "gpu")]
-    let graph = femto_gpt::graph::gpu::GpuGraph::new()?;
+    let graph = igris::graph::gpu::GpuGraph::new()?;
     #[cfg(feature = "gpu")]
     let is_gpu = true;
 
@@ -55,6 +60,7 @@ fn main() -> Result<(), GraphError> {
             tokenizer_dataset,
             model,
             prompt,
+            task,
             count,
             temperature,
         } => {
@@ -65,12 +71,14 @@ fn main() -> Result<(), GraphError> {
             // Create a unique char-to-int mapping for all unique characters inside our dataset
             let dataset_char = fs::read_to_string(tokenizer_dataset)
                 .expect("Should have been able to read the file");
-            let tokenizer = SimpleTokenizer::new(&dataset_char);
+            let simple_tokenizer = SimpleTokenizer::new(&dataset_char);
+            let tokenizer = TaskAwareTokenizer::new(simple_tokenizer);
 
             assert_eq!(num_heads * head_size, embedding_degree);
 
             let vocab_size = tokenizer.vocab_size();
-            println!("Vocab-size: {} unique characters", vocab_size);
+            println!("Vocab-size: {} unique characters (including task tokens)", vocab_size);
+            println!("Task: {}", task);
             let mut gpt = GPT::new(
                 &mut rng,
                 graph,
@@ -94,30 +102,60 @@ fn main() -> Result<(), GraphError> {
 
             println!("Generating text:");
 
-            let inference = gpt.infer(
+            let inference = gpt.infer_with_task(
                 &mut rng,
-                &tokenizer.tokenize(&prompt),
+                &task,
+                &tokenizer.inner().tokenize(&prompt),
                 count,
                 temperature,
                 |_ch| {},
             )?;
 
-            // Generate 100 character with the currently trained model
+            // Generate text with the currently trained model
             println!("{}", tokenizer.untokenize(&inference));
 
             Ok(())
         }
-        Cli::Train { dataset, model } => {
+        Cli::Train { dataset, model, dataset_format } => {
             let training_state_path = &model.clone();
 
             let mut rng = rand::thread_rng();
 
-            // Create a unique char-to-int mapping for all unique characters inside our dataset
-            let dataset_char =
-                fs::read_to_string(dataset).expect("Should have been able to read the file");
-            let tokenizer = SimpleTokenizer::new(&dataset_char);
-
-            let dataset = tokenizer.tokenize(&dataset_char);
+            // Load dataset based on format
+            let (dataset_tokens, tokenizer) = if dataset_format == "jsonl" {
+                println!("Loading JSONL dataset...");
+                let multimodal_datasets = load_jsonl(&dataset).expect("Failed to load JSONL dataset");
+                println!("Loaded {} multimodal examples", multimodal_datasets.len());
+                
+                // Convert to task-tokenized format
+                let simple_tokenizer = SimpleTokenizer::new(&fs::read_to_string(&dataset).unwrap());
+                let task_tokenizer = TaskAwareTokenizer::new(simple_tokenizer);
+                
+                let mut task_tokenized_data = Vec::new();
+                for mm_dataset in multimodal_datasets {
+                    let sequence = mm_dataset.to_training_sequence();
+                    let tokens = task_tokenizer.inner().tokenize(&sequence);
+                    task_tokenized_data.push((mm_dataset.task, tokens));
+                }
+                
+                (task_tokenized_data, task_tokenizer)
+            } else {
+                println!("Loading plain text dataset...");
+                let dataset_char = fs::read_to_string(dataset).expect("Should have been able to read the file");
+                let simple_tokenizer = SimpleTokenizer::new(&dataset_char);
+                let task_tokenizer = TaskAwareTokenizer::new(simple_tokenizer);
+                
+                // Convert plain text to multimodal format (default to text task)
+                let multimodal_datasets = text_to_multimodal(&dataset_char, "text");
+                let mut task_tokenized_data = Vec::new();
+                for mm_dataset in multimodal_datasets {
+                    let sequence = mm_dataset.to_training_sequence();
+                    let tokens = task_tokenizer.inner().tokenize(&sequence);
+                    task_tokenized_data.push((mm_dataset.task, tokens));
+                }
+                
+                (task_tokenized_data, task_tokenizer)
+            };
 
             let vocab_size = tokenizer.vocab_size();
             println!("Vocab-size: {} unique characters", vocab_size);
@@ -182,9 +220,10 @@ fn main() -> Result<(), GraphError> {
 
                 println!("Generating text:");
 
-                let inference = gpt.infer(
+                let inference = gpt.infer_with_task(
                     &mut rng,
-                    &tokenizer.tokenize("\n"),
+                    "text", // Default to text task for callback
+                    &tokenizer.inner().tokenize("\n"),
                     100,
                     inference_temperature,
                     |_ch| {},
@@ -205,8 +244,8 @@ fn main() -> Result<(), GraphError> {
 
             // Training loop!
             #[cfg(not(feature = "gpu"))]
-            gpt.train_cpu(
-                &dataset,
+            gpt.train_multimodal_cpu(
+                &dataset_tokens,
                 100000,
                 batch_size,
                 None, // or Some(n), limit backward process to last n computations
@@ -216,8 +255,8 @@ fn main() -> Result<(), GraphError> {
             )?;
 
             #[cfg(feature = "gpu")]
-            gpt.train(
-                &dataset,
+            gpt.train_multimodal(
+                &dataset_tokens,
                 100000,
                 batch_size,
                 None, // or Some(n), limit backward process to last n computations

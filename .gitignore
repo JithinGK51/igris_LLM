@@ -1,2 +1,48 @@
-/target
-/training_state.dat
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Igris specific
+training_state.dat
+train_data/
+*.dat
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Build artifacts
+*.o
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Documentation build
+/book/
+
+# Coverage reports
+tarpaulin-report.html
+lcov.info
+
+# Profiling
+*.prof
+
+# Backup files
+*.bak
+*.backup
