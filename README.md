@@ -5,7 +5,7 @@
 [![GitHub stars](https://img.shields.io/github/stars/JithinGK51/igris_LLM.svg)](https://github.com/JithinGK51/igris_LLM)
 [![GitHub forks](https://img.shields.io/github/forks/JithinGK51/igris_LLM.svg)](https://github.com/JithinGK51/igris_LLM)
 
-**Igris** is a pure Rust implementation of a minimal Generative Pretrained Transformer (GPT) with advanced multi-modal training capabilities. Built from scratch with performance and educational value in mind, it supports both CPU and GPU training for text generation, code generation, and image prompt generation.
+**Igris** is a pure Rust implementation of a minimal Generative Pretrained Transformer (GPT) with advanced multi-modal training capabilities. Built from scratch with performance and educational value in mind, it supports both CPU and GPU training for text generation, code generation, image prompt generation, and audio/video generation (framework implementation).
 
 ## ✨ Features
 
@@ -24,13 +24,15 @@
 
 ### 🏗️ **Architecture**
 - **Pure Rust**: Memory-safe, fast, and reliable implementation
-- **Task-Aware Tokenization**: Special tokens for different generation modes
+- **Task-Aware Tokenization**: Special tokens for different generation modes (text, code, image, audio, video)
 - **Modern GPT Architecture**: Attention mechanisms, layer normalization, dropout
+- **Dual Loss System**: Cross-entropy for text/code/image, MSE for audio/video embeddings
 - **AdamW Optimizer**: Advanced optimization with learning rate scheduling
 
 ### 📊 **Data Formats**
-- **JSONL Support**: Structured multi-modal datasets
+- **JSONL Support**: Structured multi-modal datasets with embedding support
 - **Backward Compatibility**: Legacy plain text format support
+- **Embedding Support**: Precomputed embeddings for audio/video tasks
 - **Flexible Input**: Easy dataset preparation and management
 
 ## 🚀 Quick Start
@@ -64,11 +66,17 @@ cargo build --release
 
 #### Train on JSONL Dataset
 ```bash
-# CPU Training
-cargo run --release -- train --dataset datasets/mixed_multimodal.jsonl --dataset-format jsonl
+# CPU Training (all modalities: text, code, image, audio, video)
+cargo run --release -- train --dataset datasets/mixed_multimodal_av.jsonl --dataset-format jsonl
 
 # GPU Training (faster)
-cargo run --release --features gpu -- train --dataset datasets/mixed_multimodal.jsonl --dataset-format jsonl
+cargo run --release --features gpu -- train --dataset datasets/mixed_multimodal_av.jsonl --dataset-format jsonl
+
+# Audio-only training
+cargo run --release -- train --dataset datasets/sample_audio.jsonl --dataset-format jsonl
+
+# Video-only training
+cargo run --release -- train --dataset datasets/sample_video.jsonl --dataset-format jsonl
 ```
 
 #### Train on Plain Text (Legacy)
@@ -118,11 +126,15 @@ igris_LLM/
 │   └── optimizer.rs         # Optimization algorithms
 ├── datasets/                # Sample datasets
 │   ├── mixed_multimodal.jsonl
+│   ├── mixed_multimodal_av.jsonl
 │   ├── sample_text.jsonl
 │   ├── sample_code.jsonl
-│   └── sample_image.jsonl
+│   ├── sample_image.jsonl
+│   ├── sample_audio.jsonl
+│   └── sample_video.jsonl
 ├── docs/                    # Documentation
 │   ├── MULTIMODAL_TRAINING.md
+│   ├── AUDIO_VIDEO_TRAINING.md
 │   └── ADVANCED_TRAINING_GUIDE.md
 └── Cargo.toml              # Project configuration
 ```
@@ -184,12 +196,15 @@ Each line should be a JSON object with the following structure:
 - **Attention Heads**: 4
 - **Batch Size**: 32
 - **Dropout**: 0.0
+- **Audio Embedding Dimension**: 128
+- **Video Embedding Dimension**: 256
 
 ### Training Parameters
 - **Learning Rate**: 0.001 (with warmup and decay)
 - **Optimizer**: AdamW
 - **Gradient Clipping**: Enabled
 - **Checkpointing**: Automatic
+- **Loss Functions**: Cross-entropy (text/code/image), MSE (audio/video)
 
 ## 🎨 Sample Outputs
 
@@ -225,6 +240,50 @@ standing in a futuristic laboratory surrounded by holographic displays and
 floating data streams."
 ```
 
+### Audio Generation (Framework)
+```
+Prompt: "Generate speech for 'Hello world'"
+
+Output: "Generated audio embedding tokens: [3, 45, 12, 78, ...]
+Note: This is a framework implementation. In a full implementation,
+these tokens would be converted to actual audio embeddings."
+```
+
+### Video Generation (Framework)
+```
+Prompt: "Generate a video of a sunset"
+
+Output: "Generated video embedding tokens: [4, 23, 67, 89, ...]
+Note: This is a framework implementation. In a full implementation,
+these tokens would be converted to actual video embeddings."
+```
+
+## 🎵 Audio & Video Framework
+
+Igris includes a framework implementation for audio and video generation using precomputed embeddings:
+
+### Framework Features
+- **Embedding-Based Training**: Uses MSE loss for continuous embedding prediction
+- **Task-Aware Design**: Seamless integration with existing multi-modal system
+- **Extensible Architecture**: Ready for integration with real audio/video encoders/decoders
+- **GPU Accelerated**: Full OpenCL support for embedding-based training
+
+### Current Implementation
+- **Audio**: 128-dimensional embeddings (configurable)
+- **Video**: 256-dimensional embeddings (configurable)
+- **Loss Function**: MSE (Mean Squared Error) for embedding prediction
+- **Inference**: Generates token sequences (framework mode)
+
+### Converting to Full Implementation
+To create a complete audio/video generation system:
+
+1. **Add Encoders**: Integrate Wav2Vec2 (audio) or VideoMAE (video)
+2. **Modify Inference**: Output actual embedding vectors instead of tokens
+3. **Add Decoders**: Integrate vocoder (audio) or video decoder
+4. **Post-Processing**: Generate actual audio/video files
+
+See [Audio & Video Training Guide](docs/AUDIO_VIDEO_TRAINING.md) for detailed instructions.
+
 ## 🔧 Advanced Usage
 
 ### Custom Training Parameters
@@ -242,6 +301,12 @@ cargo run --release -- train --dataset text_only.jsonl --dataset-format jsonl
 
 # Train only on code data
 cargo run --release -- train --dataset code_only.jsonl --dataset-format jsonl
+
+# Train only on audio data
+cargo run --release -- train --dataset audio_only.jsonl --dataset-format jsonl
+
+# Train only on video data
+cargo run --release -- train --dataset video_only.jsonl --dataset-format jsonl
 ```
 
 ## 🏆 Performance
@@ -253,6 +318,7 @@ cargo run --release -- train --dataset code_only.jsonl --dataset-format jsonl
 ### Memory Usage
 - **CPU**: ~2-8GB RAM (depending on model size)
 - **GPU**: ~4-16GB VRAM (depending on batch size and model size)
+- **Audio/Video**: Additional memory for embedding storage and MSE loss computation
 
 ## 🤝 Contributing
 
@@ -263,7 +329,7 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 git clone https://github.com/JithinGK51/igris_LLM.git
 cd igris_LLM
 cargo test
-cargo run --release -- train --dataset datasets/sample_text.jsonl --dataset-format jsonl
+cargo run --release -- train --dataset datasets/mixed_multimodal_av.jsonl --dataset-format jsonl
 ```
 
 ## 📄 License
@@ -278,6 +344,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🔮 Roadmap
 
+- [x] Audio and video generation framework with embeddings
+- [x] MSE loss function for embedding-based tasks
+- [x] Task-aware tokenization for 5 modalities
+- [ ] Real audio/video generation with decoders
 - [ ] Support for more task types (translation, summarization)
 - [ ] Real image generation capabilities
 - [ ] Distributed training support
