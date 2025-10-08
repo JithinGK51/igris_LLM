@@ -14,14 +14,18 @@ impl<T: Tokenizer> TaskAwareTokenizer<T> {
         let mut task_tokens = HashMap::new();
         let mut task_token_strings = HashMap::new();
 
-        // Reserve first 3 token IDs for task tokens
+        // Reserve first 5 token IDs for task tokens
         task_tokens.insert("text".to_string(), 0);
         task_tokens.insert("code".to_string(), 1);
         task_tokens.insert("image".to_string(), 2);
+        task_tokens.insert("audio".to_string(), 3);
+        task_tokens.insert("video".to_string(), 4);
 
         task_token_strings.insert("text".to_string(), "<TASK_TEXT>");
         task_token_strings.insert("code".to_string(), "<TASK_CODE>");
         task_token_strings.insert("image".to_string(), "<TASK_IMAGE>");
+        task_token_strings.insert("audio".to_string(), "<TASK_AUDIO>");
+        task_token_strings.insert("video".to_string(), "<TASK_VIDEO>");
 
         Self {
             inner,
@@ -75,7 +79,7 @@ impl<T: Tokenizer> TaskAwareTokenizer<T> {
 
     /// Check if a token is a task token
     pub fn is_task_token(&self, token_id: usize) -> bool {
-        token_id < 3 // First 3 tokens are reserved for tasks
+        token_id < 5 // First 5 tokens are reserved for tasks
     }
 
     /// Get the task type for a given task token ID
@@ -84,6 +88,8 @@ impl<T: Tokenizer> TaskAwareTokenizer<T> {
             0 => Some("text"),
             1 => Some("code"),
             2 => Some("image"),
+            3 => Some("audio"),
+            4 => Some("video"),
             _ => None,
         }
     }
@@ -91,8 +97,8 @@ impl<T: Tokenizer> TaskAwareTokenizer<T> {
 
 impl<T: Tokenizer> Tokenizer for TaskAwareTokenizer<T> {
     fn vocab_size(&self) -> usize {
-        // Add 3 for task tokens
-        self.inner.vocab_size() + 3
+        // Add 5 for task tokens
+        self.inner.vocab_size() + 5
     }
 
     fn tokenize(&self, text: &str) -> Vec<usize> {
@@ -135,6 +141,8 @@ mod tests {
         assert_eq!(task_tokenizer.get_task_token_id("text"), Some(0));
         assert_eq!(task_tokenizer.get_task_token_id("code"), Some(1));
         assert_eq!(task_tokenizer.get_task_token_id("image"), Some(2));
+        assert_eq!(task_tokenizer.get_task_token_id("audio"), Some(3));
+        assert_eq!(task_tokenizer.get_task_token_id("video"), Some(4));
         assert_eq!(task_tokenizer.get_task_token_id("invalid"), None);
     }
 
@@ -146,6 +154,8 @@ mod tests {
         assert_eq!(task_tokenizer.get_task_token_string("text"), Some("<TASK_TEXT>"));
         assert_eq!(task_tokenizer.get_task_token_string("code"), Some("<TASK_CODE>"));
         assert_eq!(task_tokenizer.get_task_token_string("image"), Some("<TASK_IMAGE>"));
+        assert_eq!(task_tokenizer.get_task_token_string("audio"), Some("<TASK_AUDIO>"));
+        assert_eq!(task_tokenizer.get_task_token_string("video"), Some("<TASK_VIDEO>"));
     }
 
     #[test]
@@ -165,7 +175,9 @@ mod tests {
         assert!(task_tokenizer.is_task_token(0));
         assert!(task_tokenizer.is_task_token(1));
         assert!(task_tokenizer.is_task_token(2));
-        assert!(!task_tokenizer.is_task_token(3));
+        assert!(task_tokenizer.is_task_token(3));
+        assert!(task_tokenizer.is_task_token(4));
+        assert!(!task_tokenizer.is_task_token(5));
     }
 
     #[test]
@@ -176,7 +188,9 @@ mod tests {
         assert_eq!(task_tokenizer.get_task_for_token_id(0), Some("text"));
         assert_eq!(task_tokenizer.get_task_for_token_id(1), Some("code"));
         assert_eq!(task_tokenizer.get_task_for_token_id(2), Some("image"));
-        assert_eq!(task_tokenizer.get_task_for_token_id(3), None);
+        assert_eq!(task_tokenizer.get_task_for_token_id(3), Some("audio"));
+        assert_eq!(task_tokenizer.get_task_for_token_id(4), Some("video"));
+        assert_eq!(task_tokenizer.get_task_for_token_id(5), None);
     }
 
     #[test]

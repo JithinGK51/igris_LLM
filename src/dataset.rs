@@ -9,6 +9,7 @@ pub struct MultiModalDataset {
     pub instruction: String,
     pub input: String,
     pub output: String,
+    pub embedding: Option<Vec<f32>>, // For audio/video tasks
 }
 
 impl MultiModalDataset {
@@ -19,6 +20,24 @@ impl MultiModalDataset {
             instruction,
             input,
             output,
+            embedding: None,
+        }
+    }
+
+    /// Create a new MultiModalDataset entry with embedding
+    pub fn new_with_embedding(
+        task: String,
+        instruction: String,
+        input: String,
+        output: String,
+        embedding: Vec<f32>,
+    ) -> Self {
+        Self {
+            task,
+            instruction,
+            input,
+            output,
+            embedding: Some(embedding),
         }
     }
 
@@ -50,6 +69,8 @@ impl MultiModalDataset {
             "text" => 0,
             "code" => 1,
             "image" => 2,
+            "audio" => 3,
+            "video" => 4,
             _ => 0, // Default to text task
         }
     }
@@ -60,6 +81,8 @@ impl MultiModalDataset {
             "text" => "<TASK_TEXT>",
             "code" => "<TASK_CODE>",
             "image" => "<TASK_IMAGE>",
+            "audio" => "<TASK_AUDIO>",
+            "video" => "<TASK_VIDEO>",
             _ => "<TASK_TEXT>", // Default to text task
         }
     }
@@ -112,7 +135,7 @@ pub fn text_to_multimodal(text: &str, task: &str) -> Vec<MultiModalDataset> {
 
 /// Validate that a dataset contains valid task types
 pub fn validate_dataset(datasets: &[MultiModalDataset]) -> Result<(), String> {
-    let valid_tasks = ["text", "code", "image"];
+    let valid_tasks = ["text", "code", "image", "audio", "video"];
     
     for dataset in datasets {
         if !valid_tasks.contains(&dataset.task.as_str()) {
@@ -190,6 +213,36 @@ mod tests {
         assert_eq!(dataset.task, "text");
         assert_eq!(dataset.task_token_id(), 0);
         assert_eq!(dataset.task_token(), "<TASK_TEXT>");
+        assert_eq!(dataset.embedding, None);
+    }
+
+    #[test]
+    fn test_audio_video_dataset_creation() {
+        let audio_dataset = MultiModalDataset::new_with_embedding(
+            "audio".to_string(),
+            "Generate speech".to_string(),
+            "".to_string(),
+            "Audio: Hello world".to_string(),
+            vec![0.1, 0.2, 0.3],
+        );
+
+        assert_eq!(audio_dataset.task, "audio");
+        assert_eq!(audio_dataset.task_token_id(), 3);
+        assert_eq!(audio_dataset.task_token(), "<TASK_AUDIO>");
+        assert_eq!(audio_dataset.embedding, Some(vec![0.1, 0.2, 0.3]));
+
+        let video_dataset = MultiModalDataset::new_with_embedding(
+            "video".to_string(),
+            "Generate video".to_string(),
+            "".to_string(),
+            "Video: Flying drone".to_string(),
+            vec![0.4, 0.5, 0.6],
+        );
+
+        assert_eq!(video_dataset.task, "video");
+        assert_eq!(video_dataset.task_token_id(), 4);
+        assert_eq!(video_dataset.task_token(), "<TASK_VIDEO>");
+        assert_eq!(video_dataset.embedding, Some(vec![0.4, 0.5, 0.6]));
     }
 
     #[test]
@@ -226,6 +279,8 @@ mod tests {
             MultiModalDataset::new("text".to_string(), "".to_string(), "".to_string(), "".to_string()),
             MultiModalDataset::new("code".to_string(), "".to_string(), "".to_string(), "".to_string()),
             MultiModalDataset::new("image".to_string(), "".to_string(), "".to_string(), "".to_string()),
+            MultiModalDataset::new("audio".to_string(), "".to_string(), "".to_string(), "".to_string()),
+            MultiModalDataset::new("video".to_string(), "".to_string(), "".to_string(), "".to_string()),
         ];
 
         assert!(validate_dataset(&valid_datasets).is_ok());

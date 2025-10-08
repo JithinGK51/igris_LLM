@@ -13,6 +13,8 @@
 - **Text Generation**: Stories, poetry, dialogues, and creative writing
 - **Code Generation**: Python, C, JavaScript, and other programming languages
 - **Image Prompt Generation**: Text-to-image descriptions and creative prompts
+- **Audio Generation**: Text-to-speech and audio synthesis (framework with embeddings)
+- **Video Generation**: Text-to-video and video synthesis (framework with embeddings)
 
 ### 🚀 **Performance & Scalability**
 - **CPU Training**: Optimized for multi-core processors with parallel processing
@@ -91,6 +93,16 @@ cargo run --release -- infer --task code --prompt "Write a Python function to so
 cargo run --release -- infer --task image --prompt "Generate an image of a magical forest" --count 100 --temperature 0.7
 ```
 
+#### Audio Generation
+```bash
+cargo run --release -- infer --task audio --prompt "Generate speech for 'Hello world'" --count 100 --temperature 0.7
+```
+
+#### Video Generation
+```bash
+cargo run --release -- infer --task video --prompt "Generate a video of a sunset" --count 100 --temperature 0.7
+```
+
 ## 📁 Project Structure
 
 ```
@@ -119,6 +131,7 @@ igris_LLM/
 
 - **[Quick Start Training Guide](docs/QUICK_START_TRAINING.md)** - Step-by-step training guide with updated datasets
 - **[Multi-Modal Training Guide](docs/MULTIMODAL_TRAINING.md)** - Complete guide for setting up multi-modal training
+- **[Audio & Video Training Guide](docs/AUDIO_VIDEO_TRAINING.md)** - Guide for audio and video generation with embeddings
 - **[Advanced Training Guide](docs/ADVANCED_TRAINING_GUIDE.md)** - Production-level training strategies and optimization
 
 ## 🎯 Dataset Format
@@ -150,6 +163,16 @@ Each line should be a JSON object with the following structure:
 **Image Prompt Generation:**
 ```json
 {"task": "image", "instruction": "Generate an image of a futuristic city skyline.", "input": "", "output": "A breathtaking futuristic city skyline with towering glass and steel buildings..."}
+```
+
+**Audio Generation:**
+```json
+{"task": "audio", "instruction": "Generate speech for 'Hello world'", "input": "", "output": "Audio: Hello world", "embedding": [0.1, 0.2, 0.3, ..., 0.5]}
+```
+
+**Video Generation:**
+```json
+{"task": "video", "instruction": "Generate a video of a sunset", "input": "", "output": "Video: Beautiful sunset", "embedding": [0.3, 0.4, 0.5, ..., 0.7]}
 ```
 
 ## ⚙️ Configuration

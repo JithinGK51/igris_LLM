@@ -100,7 +100,7 @@ fn main() -> Result<(), GraphError> {
             let ts: TrainingState = bincode::deserialize(&bytes).unwrap();
             gpt.set_training_state(ts, true)?;
 
-            println!("Generating text:");
+            println!("Generating {}:", task);
 
             let inference = gpt.infer_with_task(
                 &mut rng,
@@ -111,8 +111,18 @@ fn main() -> Result<(), GraphError> {
                 |_ch| {},
             )?;
 
-            // Generate text with the currently trained model
-            println!("{}", tokenizer.untokenize(&inference));
+            // Generate output based on task type
+            match task.as_str() {
+                "audio" | "video" => {
+                    println!("Generated {} embedding tokens: {:?}", task, inference);
+                    println!("Note: This is a framework implementation. In a full implementation,");
+                    println!("these tokens would be converted to actual {} embeddings.", task);
+                }
+                _ => {
+                    // Generate text with the currently trained model
+                    println!("{}", tokenizer.untokenize(&inference));
+                }
+            }
 
             Ok(())
         }
@@ -135,7 +145,7 @@ fn main() -> Result<(), GraphError> {
                 for mm_dataset in multimodal_datasets {
                     let sequence = mm_dataset.to_training_sequence();
                     let tokens = task_tokenizer.inner().tokenize(&sequence);
-                    task_tokenized_data.push((mm_dataset.task, tokens));
+                    task_tokenized_data.push((mm_dataset.task, tokens, mm_dataset.embedding));
                 }
                 
                 (task_tokenized_data, task_tokenizer)
@@ -151,7 +161,7 @@ fn main() -> Result<(), GraphError> {
                 for mm_dataset in multimodal_datasets {
                     let sequence = mm_dataset.to_training_sequence();
                     let tokens = task_tokenizer.inner().tokenize(&sequence);
-                    task_tokenized_data.push((mm_dataset.task, tokens));
+                    task_tokenized_data.push((mm_dataset.task, tokens, mm_dataset.embedding));
                 }
                 
                 (task_tokenized_data, task_tokenizer)
