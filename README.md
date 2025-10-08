@@ -117,6 +117,7 @@ igris_LLM/
 
 ## 📚 Documentation
 
+- **[Quick Start Training Guide](docs/QUICK_START_TRAINING.md)** - Step-by-step training guide with updated datasets
 - **[Multi-Modal Training Guide](docs/MULTIMODAL_TRAINING.md)** - Complete guide for setting up multi-modal training
 - **[Advanced Training Guide](docs/ADVANCED_TRAINING_GUIDE.md)** - Production-level training strategies and optimization
 
